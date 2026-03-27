@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -12,9 +13,15 @@ import (
 	"go-oj/internal/pkg/response"
 )
 
-func New(healthHandler *handler.HealthHandler) *gin.Engine {
+func New(
+	healthHandler *handler.HealthHandler,
+	authHandler *handler.AuthHandler,
+	problemSetHandler *handler.ProblemSetHandler,
+	problemHandler *handler.ProblemHandler,
+	submissionHandler *handler.SubmissionHandler,
+) *gin.Engine {
 	r := gin.New()
-	r.Use(gin.Logger(), gin.Recovery(), requestIDMiddleware())
+	r.Use(requestIDMiddleware(), gin.Logger(), gin.Recovery())
 
 	r.NoRoute(func(c *gin.Context) {
 		resp := response.Error(http.StatusNotFound, "route not found")
@@ -29,6 +36,20 @@ func New(healthHandler *handler.HealthHandler) *gin.Engine {
 	{
 		apiV1.GET("/health", healthHandler.Health)
 		apiV1.GET("/ready", healthHandler.Ready)
+
+		authV1 := apiV1.Group("/auth")
+		{
+			authV1.POST("/register", authHandler.Register)
+			authV1.POST("/login", authHandler.Login)
+		}
+
+		apiV1.GET("/problem-sets", problemSetHandler.List)
+		apiV1.GET("/problem-sets/:slug", problemSetHandler.Detail)
+		apiV1.GET("/problems", problemHandler.List)
+		apiV1.GET("/problems/:slug", problemHandler.Detail)
+		apiV1.POST("/submissions", submissionHandler.Submit)
+		apiV1.GET("/submissions", submissionHandler.ListMySubmissions)
+		apiV1.GET("/problems/:slug/submissions", submissionHandler.ListProblemSubmissions)
 	}
 
 	return r
@@ -37,7 +58,7 @@ func New(healthHandler *handler.HealthHandler) *gin.Engine {
 func requestIDMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		requestID := c.GetHeader("X-Request-ID")
-		if requestID == "" {
+		if !isSafeRequestID(requestID) {
 			requestID = newRequestID()
 		}
 
@@ -45,6 +66,21 @@ func requestIDMiddleware() gin.HandlerFunc {
 		c.Header("X-Request-ID", requestID)
 		c.Next()
 	}
+}
+
+func isSafeRequestID(requestID string) bool {
+	if requestID == "" || len(requestID) > 64 {
+		return false
+	}
+
+	for _, char := range requestID {
+		if strings.ContainsRune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_.", char) {
+			continue
+		}
+		return false
+	}
+
+	return true
 }
 
 func newRequestID() string {

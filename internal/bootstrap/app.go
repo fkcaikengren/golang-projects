@@ -38,10 +38,26 @@ func NewApp() (*App, error) {
 	healthService := service.NewHealthService(cfg.AppName, healthRepo)
 	healthHandler := handler.NewHealthHandler(healthService)
 
+	userRepo := repository.NewUserRepository(db)
+	problemSetRepo := repository.NewProblemSetRepository(db)
+	problemRepo := repository.NewProblemRepository(db)
+	submissionRepo := repository.NewSubmissionRepository(db)
+
+	tokenTTL := time.Duration(cfg.Auth.TokenTTL) * time.Minute
+	authService := service.NewAuthService(userRepo, []byte(cfg.Auth.JWTSecret), tokenTTL)
+	problemSetService := service.NewProblemSetService(problemSetRepo)
+	problemService := service.NewProblemService(problemRepo)
+	submissionService := service.NewSubmissionService(submissionRepo, problemRepo)
+
+	authHandler := handler.NewAuthHandler(authService)
+	problemSetHandler := handler.NewProblemSetHandler(problemSetService)
+	problemHandler := handler.NewProblemHandler(problemService)
+	submissionHandler := handler.NewSubmissionHandler(submissionService)
+
 	return &App{
 		Config: cfg,
 		DB:     db,
-		Router: router.New(healthHandler),
+		Router: router.New(healthHandler, authHandler, problemSetHandler, problemHandler, submissionHandler),
 	}, nil
 }
 
@@ -62,6 +78,7 @@ func InitDB(cfg *config.Config) (*gorm.DB, error) {
 	sqlDB.SetConnMaxIdleTime(10 * time.Minute)
 
 	if err := sqlDB.Ping(); err != nil {
+		_ = sqlDB.Close()
 		return nil, err
 	}
 
@@ -76,6 +93,7 @@ func InitDB(cfg *config.Config) (*gorm.DB, error) {
 		&model.Submission{},
 		&model.UserProblemStat{},
 	); err != nil {
+		_ = sqlDB.Close()
 		return nil, err
 	}
 

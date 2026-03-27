@@ -1,7 +1,9 @@
 package config
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"strings"
 
 	"github.com/spf13/viper"
@@ -12,6 +14,12 @@ type Config struct {
 	AppEnv   string
 	HTTPPort string
 	Database DatabaseConfig
+	Auth     AuthConfig
+}
+
+type AuthConfig struct {
+	JWTSecret string
+	TokenTTL  int
 }
 
 type DatabaseConfig struct {
@@ -36,7 +44,7 @@ func Load() (*Config, error) {
 
 	if err := v.ReadInConfig(); err != nil {
 		var configFileNotFound viper.ConfigFileNotFoundError
-		if !strings.Contains(err.Error(), "no such file or directory") && err != configFileNotFound {
+		if !errors.As(err, &configFileNotFound) && !errors.Is(err, fs.ErrNotExist) {
 			return nil, fmt.Errorf("read config: %w", err)
 		}
 	}
@@ -52,6 +60,10 @@ func Load() (*Config, error) {
 			User:     v.GetString("DB_USER"),
 			Password: v.GetString("DB_PASSWORD"),
 			SSLMode:  v.GetString("DB_SSLMODE"),
+		},
+		Auth: AuthConfig{
+			JWTSecret: v.GetString("AUTH_JWT_SECRET"),
+			TokenTTL:  v.GetInt("AUTH_TOKEN_TTL"),
 		},
 	}
 
@@ -69,6 +81,7 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("DB_HOST", "127.0.0.1")
 	v.SetDefault("DB_PORT", 5432)
 	v.SetDefault("DB_SSLMODE", "disable")
+	v.SetDefault("AUTH_TOKEN_TTL", 120)
 }
 
 func (c *Config) Validate() error {
@@ -98,6 +111,14 @@ func (c *Config) Validate() error {
 
 	if c.Database.SSLMode == "" {
 		return fmt.Errorf("DB_SSLMODE is required")
+	}
+
+	if c.Auth.JWTSecret == "" {
+		return fmt.Errorf("AUTH_JWT_SECRET is required")
+	}
+
+	if c.Auth.TokenTTL <= 0 {
+		return fmt.Errorf("AUTH_TOKEN_TTL must be greater than 0")
 	}
 
 	return nil
