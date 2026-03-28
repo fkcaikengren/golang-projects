@@ -2,7 +2,7 @@ package model
 
 type OperationLog struct {
 	BaseModel
-	AdminUserID uint   `gorm:"not null;index" json:"admin_user_id"`
+	AdminUserID uint   `gorm:"not null;index;foreignKey:AdminUserID;references:ID;constraint:OnDelete:SET NULL" json:"admin_user_id"`
 	Resource    string `gorm:"size:64;not null" json:"resource"`
 	Action      string `gorm:"size:32;not null" json:"action"`
 	TargetType  string `gorm:"size:64;not null" json:"target_type"`

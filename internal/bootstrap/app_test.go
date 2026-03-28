@@ -2,6 +2,7 @@ package bootstrap
 
 import (
 	"context"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -10,6 +11,39 @@ import (
 
 	"gorm.io/gorm"
 )
+
+func TestAutoMigrateModelsIncludesAdminManagementTables(t *testing.T) {
+	t.Parallel()
+
+	models := autoMigrateModels()
+	expected := []any{
+		&model.SystemSetting{},
+		&model.User{},
+		&model.AdminUser{},
+		&model.ProblemSet{},
+		&model.Problem{},
+		&model.Tag{},
+		&model.ProblemTag{},
+		&model.ProblemSetProblem{},
+		&model.TestCase{},
+		&model.ProblemLanguage{},
+		&model.JudgeConfig{},
+		&model.Submission{},
+		&model.SubmissionResult{},
+		&model.UserProblemStat{},
+		&model.OperationLog{},
+	}
+
+	if len(models) != len(expected) {
+		t.Fatalf("autoMigrateModels() length = %d, want %d", len(models), len(expected))
+	}
+
+	for index, want := range expected {
+		if reflect.TypeOf(models[index]) != reflect.TypeOf(want) {
+			t.Fatalf("autoMigrateModels()[%d] type = %T, want %T", index, models[index], want)
+		}
+	}
+}
 
 func TestDatabaseDSN(t *testing.T) {
 	cfg := &config.Config{

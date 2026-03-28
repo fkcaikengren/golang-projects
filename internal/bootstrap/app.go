@@ -116,7 +116,17 @@ func InitDB(cfg *config.Config) (*gorm.DB, error) {
 		return nil, err
 	}
 
-	if err := db.AutoMigrate(
+	if err := db.AutoMigrate(autoMigrateModels()...); err != nil {
+		_ = sqlDB.Close()
+		return nil, err
+	}
+
+	log.Printf("database connected to %s:%d/%s", cfg.Database.Host, cfg.Database.Port, cfg.Database.Name)
+	return db, nil
+}
+
+func autoMigrateModels() []any {
+	return []any{
 		&model.SystemSetting{},
 		&model.User{},
 		&model.AdminUser{},
@@ -125,16 +135,14 @@ func InitDB(cfg *config.Config) (*gorm.DB, error) {
 		&model.Tag{},
 		&model.ProblemTag{},
 		&model.ProblemSetProblem{},
+		&model.TestCase{},
+		&model.ProblemLanguage{},
+		&model.JudgeConfig{},
 		&model.Submission{},
+		&model.SubmissionResult{},
 		&model.UserProblemStat{},
 		&model.OperationLog{},
-	); err != nil {
-		_ = sqlDB.Close()
-		return nil, err
 	}
-
-	log.Printf("database connected to %s:%d/%s", cfg.Database.Host, cfg.Database.Port, cfg.Database.Name)
-	return db, nil
 }
 
 type bootstrapAdminUserRepo interface {
