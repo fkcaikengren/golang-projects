@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"go-oj/internal/model"
+	"go-oj/internal/repository"
 
 	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
@@ -28,15 +29,10 @@ type AdminAuthServiceAPI interface {
 	Authenticate(ctx context.Context, bearerToken string) (*model.AdminUser, error)
 }
 
-type adminUserRepo interface {
-	Create(ctx context.Context, user *model.AdminUser) error
-	GetByEmail(ctx context.Context, email string) (*model.AdminUser, error)
-	GetByID(ctx context.Context, id uint) (*model.AdminUser, error)
-	UpdateLastLogin(ctx context.Context, id uint, ts int64) error
-}
+type adminUserRepo = repository.AdminUserRepository
 
 type AdminAuthService struct {
-	users     adminUserRepo
+	users     repository.AdminUserRepository
 	jwtSecret []byte
 	tokenTTL  time.Duration
 	initErr   error
@@ -52,7 +48,7 @@ type AdminAuthResult struct {
 	AdminUser *model.AdminUser `json:"admin_user"`
 }
 
-func NewAdminAuthService(users adminUserRepo, jwtSecret []byte, tokenTTL time.Duration) *AdminAuthService {
+func NewAdminAuthService(users repository.AdminUserRepository, jwtSecret []byte, tokenTTL time.Duration) *AdminAuthService {
 	service := &AdminAuthService{
 		users:     users,
 		jwtSecret: bytes.TrimSpace(jwtSecret),

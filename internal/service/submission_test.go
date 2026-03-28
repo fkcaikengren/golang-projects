@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"go-oj/internal/model"
+	"go-oj/internal/repository"
 )
 
 type stubSubmissionRepo struct {
@@ -48,8 +49,17 @@ func (s *stubSubmissionRepo) SaveWithStats(ctx context.Context, submission *mode
 }
 
 type stubProblemLookupRepo struct {
+	listFn      func(ctx context.Context, filter repository.ProblemFilter) ([]model.Problem, error)
 	getByIDFn   func(ctx context.Context, id uint) (*model.Problem, error)
 	getBySlugFn func(ctx context.Context, slug string) (*model.Problem, error)
+	listTagsFn  func(ctx context.Context, problemID uint) ([]model.Tag, error)
+}
+
+func (s stubProblemLookupRepo) List(ctx context.Context, filter repository.ProblemFilter) ([]model.Problem, error) {
+	if s.listFn != nil {
+		return s.listFn(ctx, filter)
+	}
+	return nil, nil
 }
 
 func (s stubProblemLookupRepo) GetByID(ctx context.Context, id uint) (*model.Problem, error) {
@@ -64,6 +74,13 @@ func (s stubProblemLookupRepo) GetBySlug(ctx context.Context, slug string) (*mod
 		return s.getBySlugFn(ctx, slug)
 	}
 	return nil, errors.New("not found")
+}
+
+func (s stubProblemLookupRepo) ListTags(ctx context.Context, problemID uint) ([]model.Tag, error) {
+	if s.listTagsFn != nil {
+		return s.listTagsFn(ctx, problemID)
+	}
+	return nil, nil
 }
 
 func TestSubmissionServiceSubmitAccepted(t *testing.T) {

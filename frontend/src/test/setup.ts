@@ -7,3 +7,8 @@ config.global.stubs = {
     template: '<a><slot /></a>',
   },
 }
+
+Object.defineProperty(window, 'scrollTo', {
+  writable: true,
+  value: () => {},
+})

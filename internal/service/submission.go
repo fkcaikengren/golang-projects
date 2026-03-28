@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"go-oj/internal/model"
+	"go-oj/internal/repository"
 )
 
 const (
@@ -13,17 +14,9 @@ const (
 	SubmissionStatusWrongAnswer = "wrong_answer"
 )
 
-type submissionRepo interface {
-	Create(ctx context.Context, submission *model.Submission) error
-	ListByUser(ctx context.Context, userID uint) ([]model.Submission, error)
-	ListByUserAndProblem(ctx context.Context, userID uint, problemID uint) ([]model.Submission, error)
-	SaveWithStats(ctx context.Context, submission *model.Submission) error
-}
+type submissionRepo = repository.SubmissionRepository
 
-type problemLookupRepo interface {
-	GetByID(ctx context.Context, id uint) (*model.Problem, error)
-	GetBySlug(ctx context.Context, slug string) (*model.Problem, error)
-}
+type problemLookupRepo = repository.ProblemRepository
 
 type SubmissionServiceAPI interface {
 	Submit(ctx context.Context, input SubmitCodeInput) (*model.Submission, error)
@@ -32,8 +25,8 @@ type SubmissionServiceAPI interface {
 }
 
 type SubmissionService struct {
-	submissions submissionRepo
-	problems    problemLookupRepo
+	submissions repository.SubmissionRepository
+	problems    repository.ProblemRepository
 }
 
 type SubmitCodeInput struct {
@@ -43,7 +36,7 @@ type SubmitCodeInput struct {
 	Code      string
 }
 
-func NewSubmissionService(submissions submissionRepo, problems problemLookupRepo) *SubmissionService {
+func NewSubmissionService(submissions repository.SubmissionRepository, problems repository.ProblemRepository) *SubmissionService {
 	return &SubmissionService{
 		submissions: submissions,
 		problems:    problems,

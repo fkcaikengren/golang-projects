@@ -5,9 +5,40 @@ export interface UserProfile {
   status: string
 }
 
+export interface ApiEnvelope<T> {
+  code: number
+  message: string
+  data: T
+  request_id?: string
+}
+
 export interface AuthPayload {
   token: string
   user: UserProfile
+}
+
+export interface AdminUserProfile {
+  id: number
+  email: string
+  display_name: string
+  status: string
+  last_login_at: number
+}
+
+export interface AdminAuthPayload {
+  token: string
+  admin_user: AdminUserProfile
+}
+
+export interface AdminQuickLink {
+  label: string
+  path: string
+}
+
+export interface AdminDashboardPayload {
+  title: string
+  admin_user: AdminUserProfile
+  quick_links: AdminQuickLink[]
 }
 
 export interface ProblemSetSummary {

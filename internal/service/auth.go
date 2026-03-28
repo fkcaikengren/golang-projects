@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"go-oj/internal/model"
+	"go-oj/internal/repository"
 
 	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
@@ -31,20 +32,16 @@ type AuthServiceAPI interface {
 	Login(ctx context.Context, input LoginInput) (*AuthResult, error)
 }
 
-type userRepo interface {
-	Create(ctx context.Context, user *model.User) error
-	GetByEmail(ctx context.Context, email string) (*model.User, error)
-	UpdateLastLogin(ctx context.Context, id uint, ts int64) error
-}
+type userRepo = repository.UserRepository
 
 type AuthService struct {
-	users     userRepo
+	users     repository.UserRepository
 	jwtSecret []byte
 	tokenTTL  time.Duration
 	initErr   error
 }
 
-func NewAuthService(users userRepo, jwtSecret []byte, tokenTTL time.Duration) *AuthService {
+func NewAuthService(users repository.UserRepository, jwtSecret []byte, tokenTTL time.Duration) *AuthService {
 	service := &AuthService{
 		users:     users,
 		jwtSecret: bytes.TrimSpace(jwtSecret),

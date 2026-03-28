@@ -11,12 +11,7 @@ import (
 
 var ErrProblemNotFound = gorm.ErrRecordNotFound
 
-type problemReader interface {
-	List(ctx context.Context, filter repository.ProblemFilter) ([]model.Problem, error)
-	GetBySlug(ctx context.Context, slug string) (*model.Problem, error)
-	GetByID(ctx context.Context, id uint) (*model.Problem, error)
-	ListTags(ctx context.Context, problemID uint) ([]model.Tag, error)
-}
+type problemReader = repository.ProblemRepository
 
 type ProblemServiceAPI interface {
 	List(ctx context.Context, input ProblemListInput) ([]model.Problem, error)
@@ -35,10 +30,10 @@ type ProblemDetail struct {
 }
 
 type ProblemService struct {
-	repo problemReader
+	repo repository.ProblemRepository
 }
 
-func NewProblemService(repo problemReader) *ProblemService {
+func NewProblemService(repo repository.ProblemRepository) *ProblemService {
 	return &ProblemService{repo: repo}
 }
 

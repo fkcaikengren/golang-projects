@@ -43,6 +43,10 @@ func (s *stubUserRepo) GetByEmail(ctx context.Context, email string) (*model.Use
 	return nil, gorm.ErrRecordNotFound
 }
 
+func (s *stubUserRepo) GetByID(ctx context.Context, id uint) (*model.User, error) {
+	return nil, gorm.ErrRecordNotFound
+}
+
 func (s *stubUserRepo) UpdateLastLogin(ctx context.Context, id uint, ts int64) error {
 	s.updateLastLogin++
 	s.lastLoginUpdatedID = id

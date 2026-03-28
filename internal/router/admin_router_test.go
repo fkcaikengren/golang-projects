@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -49,9 +50,19 @@ func newAdminTestRouter(t *testing.T, authz *service.AdminAuthorizer) *gin.Engin
 			authenticateFn: func(ctx context.Context, token string) (*model.AdminUser, error) {
 				switch token {
 				case "Bearer assistant-token":
-					return &model.AdminUser{BaseModel: model.BaseModel{ID: 2}, Status: service.AdminUserStatusActive}, nil
+					return &model.AdminUser{
+						BaseModel:   model.BaseModel{ID: 2},
+						Email:       "assistant@go-oj.dev",
+						DisplayName: "Assistant",
+						Status:      service.AdminUserStatusActive,
+					}, nil
 				case "Bearer admin-token":
-					return &model.AdminUser{BaseModel: model.BaseModel{ID: 1}, Status: service.AdminUserStatusActive}, nil
+					return &model.AdminUser{
+						BaseModel:   model.BaseModel{ID: 1},
+						Email:       "admin@go-oj.dev",
+						DisplayName: "Super Admin",
+						Status:      service.AdminUserStatusActive,
+					}, nil
 				default:
 					return nil, service.ErrInvalidToken
 				}
@@ -61,9 +72,19 @@ func newAdminTestRouter(t *testing.T, authz *service.AdminAuthorizer) *gin.Engin
 			authenticateFn: func(ctx context.Context, token string) (*model.AdminUser, error) {
 				switch token {
 				case "Bearer assistant-token":
-					return &model.AdminUser{BaseModel: model.BaseModel{ID: 2}, Status: service.AdminUserStatusActive}, nil
+					return &model.AdminUser{
+						BaseModel:   model.BaseModel{ID: 2},
+						Email:       "assistant@go-oj.dev",
+						DisplayName: "Assistant",
+						Status:      service.AdminUserStatusActive,
+					}, nil
 				case "Bearer admin-token":
-					return &model.AdminUser{BaseModel: model.BaseModel{ID: 1}, Status: service.AdminUserStatusActive}, nil
+					return &model.AdminUser{
+						BaseModel:   model.BaseModel{ID: 1},
+						Email:       "admin@go-oj.dev",
+						DisplayName: "Super Admin",
+						Status:      service.AdminUserStatusActive,
+					}, nil
 				default:
 					return nil, service.ErrInvalidToken
 				}
@@ -157,5 +178,33 @@ func TestAdminAuthRouteIsRegistered(t *testing.T) {
 
 	if rec.Code == http.StatusNotFound {
 		t.Fatalf("POST /admin/login returned 404, route not registered")
+	}
+}
+
+func TestAdminDashboardReturnsAdminContext(t *testing.T) {
+	t.Parallel()
+
+	authz, err := service.NewInMemoryAdminAuthorizer()
+	if err != nil {
+		t.Fatalf("NewInMemoryAdminAuthorizer() error = %v", err)
+	}
+	if err := authz.AssignRole("1", service.AdminRoleAdmin); err != nil {
+		t.Fatalf("AssignRole(admin) error = %v", err)
+	}
+
+	r := newAdminTestRouter(t, authz)
+	req := httptest.NewRequest(http.MethodGet, "/admin", nil)
+	req.Header.Set("Authorization", "Bearer admin-token")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("GET /admin status = %d, want %d", rec.Code, http.StatusOK)
+	}
+	if !strings.Contains(rec.Body.String(), "\"email\":\"admin@go-oj.dev\"") {
+		t.Fatalf("dashboard response missing admin email: %s", rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "\"display_name\":\"Super Admin\"") {
+		t.Fatalf("dashboard response missing admin display name: %s", rec.Body.String())
 	}
 }

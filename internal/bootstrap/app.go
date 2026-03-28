@@ -2,8 +2,11 @@ package bootstrap
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -16,6 +19,8 @@ import (
 	"go-oj/internal/repository"
 	"go-oj/internal/router"
 	"go-oj/internal/service"
+
+	"golang.org/x/crypto/bcrypt"
 )
 
 type App struct {
@@ -54,6 +59,13 @@ func NewApp() (*App, error) {
 	}
 	if err := adminAuthorizer.SeedPolicies(context.Background()); err != nil {
 		return nil, fmt.Errorf("seed admin policies: %w", err)
+	}
+	bootstrapAdmin, err := ensureBootstrapAdmin(context.Background(), adminUserRepo, cfg)
+	if err != nil {
+		return nil, fmt.Errorf("ensure bootstrap admin: %w", err)
+	}
+	if err := adminAuthorizer.AssignRole(strconv.FormatUint(uint64(bootstrapAdmin.ID), 10), service.AdminRoleAdmin); err != nil {
+		return nil, fmt.Errorf("assign bootstrap admin role: %w", err)
 	}
 	problemSetService := service.NewProblemSetService(problemSetRepo)
 	problemService := service.NewProblemService(problemRepo)
@@ -123,4 +135,52 @@ func InitDB(cfg *config.Config) (*gorm.DB, error) {
 
 	log.Printf("database connected to %s:%d/%s", cfg.Database.Host, cfg.Database.Port, cfg.Database.Name)
 	return db, nil
+}
+
+type bootstrapAdminUserRepo interface {
+	Create(ctx context.Context, user *model.AdminUser) error
+	GetByEmail(ctx context.Context, email string) (*model.AdminUser, error)
+}
+
+func ensureBootstrapAdmin(ctx context.Context, repo bootstrapAdminUserRepo, cfg *config.Config) (*model.AdminUser, error) {
+	email := strings.TrimSpace(strings.ToLower(cfg.AdminBootstrap.Email))
+	if email == "" {
+		email = "admin@go-oj.dev"
+	}
+
+	existing, err := repo.GetByEmail(ctx, email)
+	if err == nil && existing != nil {
+		return existing, nil
+	}
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, err
+	}
+
+	password := strings.TrimSpace(cfg.AdminBootstrap.Password)
+	if password == "" {
+		password = "Admin@123456"
+	}
+
+	displayName := strings.TrimSpace(cfg.AdminBootstrap.DisplayName)
+	if displayName == "" {
+		displayName = "Super Admin"
+	}
+
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return nil, err
+	}
+
+	adminUser := &model.AdminUser{
+		Email:        email,
+		PasswordHash: string(hash),
+		DisplayName:  displayName,
+		Status:       service.AdminUserStatusActive,
+		LastLoginAt:  0,
+	}
+	if err := repo.Create(ctx, adminUser); err != nil {
+		return nil, err
+	}
+
+	return adminUser, nil
 }

@@ -1,14 +1,225 @@
-# Admin Authz Implementation Plan
+# Admin Bootstrap And Dashboard Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build the first usable backend foundation for `/admin/*` authentication and authorization with separate `admin_users`, Casbin-backed RBAC with domain, and protected admin routes.
+**Goal:** Add default super-admin bootstrap, a usable `/admin` dashboard API, and a frontend admin login/dashboard flow that can log in successfully end-to-end.
 
-**Architecture:** Keep the existing frontend-user auth flow unchanged, then add a parallel admin identity flow with its own repository, service, JWT claims, Gin middleware, and Casbin authorization service. Register a minimal set of admin routes now so routing, token validation, status checks, and permission checks can be tested end-to-end before real admin business handlers are added.
+**Architecture:** Keep the existing user-facing auth flow unchanged, then extend the existing admin auth stack with a bootstrap initializer that seeds a default super-admin from config or fallback defaults. Reuse the current Vue frontend project, but add a separate admin auth store, admin API client helpers, and protected admin routes so the admin login token never collides with the user token.
 
-**Tech Stack:** Go, Gin, Gorm, PostgreSQL, Casbin
+**Tech Stack:** Go, Gin, Gorm, PostgreSQL, Casbin, Vue 3, Pinia, Vue Router, Naive UI, Vitest
 
 ---
+
+### Task 1: Add Bootstrap Admin Configuration And Seeding
+
+**Files:**
+- Modify: `internal/config/config.go`
+- Modify: `internal/bootstrap/app.go`
+- Modify: `internal/repository/admin_user.go`
+- Test: `internal/bootstrap/app_test.go`
+
+- [ ] **Step 1: Write the failing test**
+
+```go
+func TestEnsureBootstrapAdminCreatesFallbackSuperAdmin(t *testing.T) {
+	repo := &stubBootstrapAdminUserRepo{
+		getByEmailFn: func(ctx context.Context, email string) (*model.AdminUser, error) {
+			return nil, gorm.ErrRecordNotFound
+		},
+	}
+
+	cfg := &config.Config{}
+	err := ensureBootstrapAdmin(context.Background(), repo, cfg)
+
+	if err != nil {
+		t.Fatalf("ensureBootstrapAdmin() error = %v", err)
+	}
+	if repo.createdUser == nil {
+		t.Fatal("expected bootstrap admin to be created")
+	}
+	if repo.createdUser.Email != "admin@go-oj.dev" {
+		t.Fatalf("expected fallback email, got %q", repo.createdUser.Email)
+	}
+}
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `go test ./internal/bootstrap -run TestEnsureBootstrapAdminCreatesFallbackSuperAdmin -v`
+Expected: FAIL with undefined bootstrap initializer
+
+- [ ] **Step 3: Write minimal implementation**
+
+```go
+email := strings.TrimSpace(strings.ToLower(cfg.AdminBootstrap.Email))
+if email == "" {
+	email = "admin@go-oj.dev"
+}
+password := strings.TrimSpace(cfg.AdminBootstrap.Password)
+if password == "" {
+	password = "Admin@123456"
+}
+displayName := strings.TrimSpace(cfg.AdminBootstrap.DisplayName)
+if displayName == "" {
+	displayName = "Super Admin"
+}
+```
+
+- [ ] **Step 4: Run test to verify it passes**
+
+Run: `go test ./internal/bootstrap -run TestEnsureBootstrapAdminCreatesFallbackSuperAdmin -v`
+Expected: PASS
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add internal/config/config.go internal/bootstrap/app.go internal/repository/admin_user.go internal/bootstrap/app_test.go
+git commit -m "feat: seed bootstrap super admin"
+```
+
+### Task 2: Return A Real Admin Dashboard Payload
+
+**Files:**
+- Modify: `internal/handler/admin_stub.go`
+- Test: `internal/router/admin_router_test.go`
+
+- [ ] **Step 1: Write the failing test**
+
+```go
+func TestAdminDashboardReturnsAdminContext(t *testing.T) {
+	authz, _ := service.NewInMemoryAdminAuthorizer()
+	_ = authz.AssignRole("1", service.AdminRoleAdmin)
+
+	r := newAdminTestRouter(t, authz)
+	req := httptest.NewRequest(http.MethodGet, "/admin", nil)
+	req.Header.Set("Authorization", "Bearer admin-token")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if !strings.Contains(rec.Body.String(), "\"email\":\"admin@go-oj.dev\"") {
+		t.Fatalf("dashboard response missing admin email: %s", rec.Body.String())
+	}
+}
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `go test ./internal/router -run TestAdminDashboardReturnsAdminContext -v`
+Expected: FAIL because dashboard only returns `{ "ok": true }`
+
+- [ ] **Step 3: Write minimal implementation**
+
+```go
+func (h *AdminHandler) Dashboard(c *gin.Context) {
+	resp := response.Success(gin.H{
+		"title": "Admin Dashboard",
+		"admin_user": gin.H{
+			"id":           c.GetUint("admin_user_id"),
+			"email":        c.GetString("admin_user_email"),
+			"display_name": c.GetString("admin_user_display_name"),
+		},
+	})
+	resp.RequestID = c.GetString("request_id")
+	c.JSON(http.StatusOK, resp)
+}
+```
+
+- [ ] **Step 4: Run test to verify it passes**
+
+Run: `go test ./internal/router -run TestAdminDashboardReturnsAdminContext -v`
+Expected: PASS
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add internal/handler/admin_stub.go internal/router/admin_router_test.go internal/router/router.go
+git commit -m "feat: add admin dashboard payload"
+```
+
+### Task 3: Add Frontend Admin Auth Store, Routes, And Pages
+
+**Files:**
+- Create: `frontend/src/features/admin-auth/store.ts`
+- Create: `frontend/src/features/admin-auth/api.ts`
+- Create: `frontend/src/pages/AdminLoginPage.vue`
+- Create: `frontend/src/pages/AdminDashboardPage.vue`
+- Modify: `frontend/src/router/index.ts`
+- Modify: `frontend/src/shared/types/api.ts`
+- Modify: `frontend/src/shared/lib/http.ts`
+- Test: `frontend/src/router/router.test.ts`
+- Test: `frontend/src/features/admin-auth/store.test.ts`
+
+- [ ] **Step 1: Write the failing test**
+
+```ts
+it('redirects anonymous admin visitors to /admin/login', async () => {
+  setActivePinia(createPinia())
+  const router = createAppRouter()
+
+  await router.push('/admin')
+
+  expect(router.currentRoute.value.fullPath).toBe('/admin/login')
+})
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `cd frontend && npm run test:run -- src/router/router.test.ts`
+Expected: FAIL because admin routes do not exist yet
+
+- [ ] **Step 3: Write minimal implementation**
+
+```ts
+if (to.path.startsWith('/admin') && !adminAuthStore.isAuthenticated) {
+  next('/admin/login')
+  return
+}
+```
+
+- [ ] **Step 4: Run test to verify it passes**
+
+Run: `cd frontend && npm run test:run -- src/router/router.test.ts src/features/admin-auth/store.test.ts`
+Expected: PASS
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add frontend/src/features/admin-auth/store.ts frontend/src/features/admin-auth/api.ts frontend/src/pages/AdminLoginPage.vue frontend/src/pages/AdminDashboardPage.vue frontend/src/router/index.ts frontend/src/shared/types/api.ts frontend/src/shared/lib/http.ts frontend/src/features/admin-auth/store.test.ts frontend/src/router/router.test.ts
+git commit -m "feat: add admin frontend auth flow"
+```
+
+### Task 4: Verify End-To-End Admin Login Flow
+
+**Files:**
+- Modify: `.env.example`
+- Modify: `docs/project-prd.md`
+
+- [ ] **Step 1: Run backend tests**
+
+Run: `go test ./...`
+Expected: PASS
+
+- [ ] **Step 2: Run frontend tests**
+
+Run: `cd frontend && npm run test:run`
+Expected: PASS
+
+- [ ] **Step 3: Run frontend build**
+
+Run: `cd frontend && npm run build`
+Expected: PASS
+
+- [ ] **Step 4: Manual login smoke**
+
+Run: `go run ./cmd/server` and `cd frontend && npm run dev`
+Expected: Logging in at `/admin/login` with `admin@go-oj.dev / Admin@123456` redirects to `/admin` and renders dashboard data from the protected backend endpoint.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add .env.example docs/project-prd.md
+git commit -m "docs: document bootstrap admin login flow"
+```
 
 ### Task 1: Add Admin Domain Models And Persistence
 

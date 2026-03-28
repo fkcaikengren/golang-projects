@@ -4,17 +4,14 @@ import (
 	"context"
 
 	"go-oj/internal/model"
+	"go-oj/internal/repository"
 
 	"gorm.io/gorm"
 )
 
 var ErrProblemSetNotFound = gorm.ErrRecordNotFound
 
-type problemSetReader interface {
-	ListActive(ctx context.Context) ([]model.ProblemSet, error)
-	GetBySlug(ctx context.Context, slug string) (*model.ProblemSet, error)
-	ListProblems(ctx context.Context, setID uint) ([]model.Problem, error)
-}
+type problemSetReader = repository.ProblemSetRepository
 
 type ProblemSetServiceAPI interface {
 	List(ctx context.Context) ([]model.ProblemSet, error)
@@ -27,10 +24,10 @@ type ProblemSetDetail struct {
 }
 
 type ProblemSetService struct {
-	repo problemSetReader
+	repo repository.ProblemSetRepository
 }
 
-func NewProblemSetService(repo problemSetReader) *ProblemSetService {
+func NewProblemSetService(repo repository.ProblemSetRepository) *ProblemSetService {
 	return &ProblemSetService{repo: repo}
 }
 

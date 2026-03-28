@@ -1,5 +1,7 @@
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 
+import AdminDashboardPage from '../pages/AdminDashboardPage.vue'
+import AdminLoginPage from '../pages/AdminLoginPage.vue'
 import AuthPage from '../pages/AuthPage.vue'
 import HomePage from '../pages/HomePage.vue'
 import ProblemDetailPage from '../pages/ProblemDetailPage.vue'
@@ -10,11 +12,11 @@ import ProgressPage from '../pages/ProgressPage.vue'
 import SubmissionsPage from '../pages/SubmissionsPage.vue'
 import AppShell from '../shared/ui/AppShell.vue'
 import { useAuthStore } from '../features/auth/store'
-
-// 需要登录的路由
-const protectedRoutes = ['/problem-sets', '/problems', '/submissions', '/progress']
+import { useAdminAuthStore } from '../features/admin-auth/store'
 
 const routes: RouteRecordRaw[] = [
+  { path: '/admin/login', component: AdminLoginPage },
+  { path: '/admin', component: AdminDashboardPage },
   {
     path: '/',
     component: AppShell,
@@ -44,12 +46,17 @@ export function createAppRouter() {
   // 导航守卫：检查登录状态
   router.beforeEach((to, _from, next) => {
     const authStore = useAuthStore()
+    const adminAuthStore = useAdminAuthStore()
     const isProtected = to.path.startsWith('/problem-sets') ||
                         to.path.startsWith('/problems') ||
                         to.path.startsWith('/submissions') ||
                         to.path.startsWith('/progress')
 
-    if (isProtected && !authStore.isAuthenticated) {
+    if (to.path.startsWith('/admin') && to.path !== '/admin/login' && !adminAuthStore.isAuthenticated) {
+      next('/admin/login')
+    } else if (to.path === '/admin/login' && adminAuthStore.isAuthenticated) {
+      next('/admin')
+    } else if (isProtected && !authStore.isAuthenticated) {
       next('/login')
     } else if ((to.path === '/login' || to.path === '/register') && authStore.isAuthenticated) {
       next('/problem-sets')

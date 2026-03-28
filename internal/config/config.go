@@ -10,16 +10,23 @@ import (
 )
 
 type Config struct {
-	AppName  string
-	AppEnv   string
-	HTTPPort string
-	Database DatabaseConfig
-	Auth     AuthConfig
+	AppName        string
+	AppEnv         string
+	HTTPPort       string
+	Database       DatabaseConfig
+	Auth           AuthConfig
+	AdminBootstrap AdminBootstrapConfig
 }
 
 type AuthConfig struct {
 	JWTSecret string
 	TokenTTL  int
+}
+
+type AdminBootstrapConfig struct {
+	Email       string
+	Password    string
+	DisplayName string
 }
 
 type DatabaseConfig struct {
@@ -64,6 +71,11 @@ func Load() (*Config, error) {
 		Auth: AuthConfig{
 			JWTSecret: v.GetString("AUTH_JWT_SECRET"),
 			TokenTTL:  v.GetInt("AUTH_TOKEN_TTL"),
+		},
+		AdminBootstrap: AdminBootstrapConfig{
+			Email:       v.GetString("ADMIN_BOOTSTRAP_EMAIL"),
+			Password:    v.GetString("ADMIN_BOOTSTRAP_PASSWORD"),
+			DisplayName: v.GetString("ADMIN_BOOTSTRAP_DISPLAY_NAME"),
 		},
 	}
 

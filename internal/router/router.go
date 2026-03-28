@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -127,7 +128,10 @@ func newRequestID() string {
 
 func corsMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		c.Header("Access-Control-Allow-Origin", "http://localhost:5173")
+		origin := c.GetHeader("Origin")
+		if isAllowedCORSOrigin(origin) {
+			c.Header("Access-Control-Allow-Origin", origin)
+		}
 		c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
 		c.Header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Request-ID")
 		c.Header("Access-Control-Allow-Credentials", "true")
@@ -138,6 +142,27 @@ func corsMiddleware() gin.HandlerFunc {
 		}
 
 		c.Next()
+	}
+}
+
+func isAllowedCORSOrigin(origin string) bool {
+	if origin == "" {
+		return false
+	}
+
+	parsed, err := url.Parse(origin)
+	if err != nil {
+		return false
+	}
+	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+		return false
+	}
+
+	switch parsed.Hostname() {
+	case "localhost", "127.0.0.1":
+		return true
+	default:
+		return false
 	}
 }
 
@@ -172,32 +197,36 @@ func adminAuthorizationMiddleware(authService service.AdminAuthServiceAPI, autho
 		}
 
 		c.Set("admin_user_id", adminUser.ID)
+		c.Set("admin_user_email", adminUser.Email)
+		c.Set("admin_user_display_name", adminUser.DisplayName)
+		c.Set("admin_user_status", adminUser.Status)
+		c.Set("admin_user_last_login_at", adminUser.LastLoginAt)
 		c.Next()
 	}
 }
 
 func adminPermissionForRoute(method string, fullPath string) (string, string, bool) {
 	permissions := map[string][2]string{
-		"GET /admin":                       {"dashboard", "read"},
-		"GET /admin/problems":              {"problems", "read"},
-		"POST /admin/problems":             {"problems", "write"},
-		"PUT /admin/problems/:id":          {"problems", "write"},
-		"GET /admin/problem-sets":          {"problem_sets", "read"},
-		"POST /admin/problem-sets":         {"problem_sets", "write"},
-		"PUT /admin/problem-sets/:id":      {"problem_sets", "write"},
-		"GET /admin/tags":                  {"tags", "read"},
-		"POST /admin/tags":                 {"tags", "write"},
-		"PUT /admin/tags/:id":              {"tags", "write"},
-		"GET /admin/test-cases":            {"test_cases", "read"},
-		"POST /admin/test-cases":           {"test_cases", "write"},
-		"PUT /admin/test-cases/:id":        {"test_cases", "write"},
-		"GET /admin/judge-configs":         {"judge_configs", "read"},
-		"PUT /admin/judge-configs/:id":     {"judge_configs", "write"},
-		"GET /admin/submissions":           {"submissions", "read"},
-		"GET /admin/users":                 {"users", "read"},
-		"PATCH /admin/users/:id/status":    {"users", "write"},
-		"GET /admin/settings":              {"settings", "read"},
-		"PATCH /admin/settings":            {"settings", "write"},
+		"GET /admin":                    {"dashboard", "read"},
+		"GET /admin/problems":           {"problems", "read"},
+		"POST /admin/problems":          {"problems", "write"},
+		"PUT /admin/problems/:id":       {"problems", "write"},
+		"GET /admin/problem-sets":       {"problem_sets", "read"},
+		"POST /admin/problem-sets":      {"problem_sets", "write"},
+		"PUT /admin/problem-sets/:id":   {"problem_sets", "write"},
+		"GET /admin/tags":               {"tags", "read"},
+		"POST /admin/tags":              {"tags", "write"},
+		"PUT /admin/tags/:id":           {"tags", "write"},
+		"GET /admin/test-cases":         {"test_cases", "read"},
+		"POST /admin/test-cases":        {"test_cases", "write"},
+		"PUT /admin/test-cases/:id":     {"test_cases", "write"},
+		"GET /admin/judge-configs":      {"judge_configs", "read"},
+		"PUT /admin/judge-configs/:id":  {"judge_configs", "write"},
+		"GET /admin/submissions":        {"submissions", "read"},
+		"GET /admin/users":              {"users", "read"},
+		"PATCH /admin/users/:id/status": {"users", "write"},
+		"GET /admin/settings":           {"settings", "read"},
+		"PATCH /admin/settings":         {"settings", "write"},
 	}
 
 	permission, ok := permissions[method+" "+fullPath]
