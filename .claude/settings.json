@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "WebFetch(domain:docs.anthropic.com)",
+      "Read(//home/ubuntu/.claude/**)",
+      "Read(//home/ubuntu/**)",
+      "Bash(pnpm lint:fix)",
+      "Bash(pnpm vue-tsc:*)"
+    ]
+  }
+}
