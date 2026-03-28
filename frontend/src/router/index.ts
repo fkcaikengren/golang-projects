@@ -9,6 +9,10 @@ import ProblemsPage from '../pages/ProblemsPage.vue'
 import ProgressPage from '../pages/ProgressPage.vue'
 import SubmissionsPage from '../pages/SubmissionsPage.vue'
 import AppShell from '../shared/ui/AppShell.vue'
+import { useAuthStore } from '../features/auth/store'
+
+// 需要登录的路由
+const protectedRoutes = ['/problem-sets', '/problems', '/submissions', '/progress']
 
 const routes: RouteRecordRaw[] = [
   {
@@ -29,13 +33,32 @@ const routes: RouteRecordRaw[] = [
 ]
 
 export function createAppRouter() {
-  return createRouter({
+  const router = createRouter({
     history: createWebHistory(),
     routes,
     scrollBehavior() {
       return { top: 0 }
     },
   })
+
+  // 导航守卫：检查登录状态
+  router.beforeEach((to, _from, next) => {
+    const authStore = useAuthStore()
+    const isProtected = to.path.startsWith('/problem-sets') ||
+                        to.path.startsWith('/problems') ||
+                        to.path.startsWith('/submissions') ||
+                        to.path.startsWith('/progress')
+
+    if (isProtected && !authStore.isAuthenticated) {
+      next('/login')
+    } else if ((to.path === '/login' || to.path === '/register') && authStore.isAuthenticated) {
+      next('/problem-sets')
+    } else {
+      next()
+    }
+  })
+
+  return router
 }
 
 export const router = createAppRouter()

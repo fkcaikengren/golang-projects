@@ -22,6 +22,7 @@ func New(
 ) *gin.Engine {
 	r := gin.New()
 	r.Use(requestIDMiddleware(), gin.Logger(), gin.Recovery())
+	r.Use(corsMiddleware())
 
 	r.NoRoute(func(c *gin.Context) {
 		resp := response.Error(http.StatusNotFound, "route not found")
@@ -90,4 +91,20 @@ func newRequestID() string {
 	}
 
 	return time.Now().UTC().Format("20060102150405.000000000")
+}
+
+func corsMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Header("Access-Control-Allow-Origin", "http://localhost:5173")
+		c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+		c.Header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Request-ID")
+		c.Header("Access-Control-Allow-Credentials", "true")
+
+		if c.Request.Method == "OPTIONS" {
+			c.AbortWithStatus(http.StatusNoContent)
+			return
+		}
+
+		c.Next()
+	}
 }
