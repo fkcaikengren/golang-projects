@@ -10,6 +10,8 @@ import (
 )
 
 type ProblemFilter struct {
+	Page     int
+	PageSize int
 	Difficulty string
 	TagSlug    string
 	Keyword    string
@@ -33,23 +35,33 @@ func NewProblemRepository(db *gorm.DB) ProblemRepository {
 func (r *problemRepository) List(ctx context.Context, filter ProblemFilter) ([]model.Problem, error) {
 	var problems []model.Problem
 
-	tx := r.db.WithContext(ctx).Model(&model.Problem{})
+	query := r.db.WithContext(ctx).Model(&model.Problem{})
+
+	// 预加载 Tags，避免 N+1 问题
+	query = query.Preload("Tags")
+
 	if difficulty := strings.TrimSpace(filter.Difficulty); difficulty != "" {
-		tx = tx.Where("problems.difficulty = ?", difficulty)
+		query = query.Where("difficulty = ?", difficulty)
 	}
 	if keyword := strings.TrimSpace(filter.Keyword); keyword != "" {
 		like := "%" + keyword + "%"
-		tx = tx.Where("problems.title ILIKE ? OR problems.description ILIKE ?", like, like)
+		query = query.Where("title ILIKE ? OR description ILIKE ?", like, like)
 	}
 	if tagSlug := strings.TrimSpace(filter.TagSlug); tagSlug != "" {
-		tx = tx.
+		query = query.
 			Joins("JOIN problem_tags pt ON pt.problem_id = problems.id").
 			Joins("JOIN tags ON tags.id = pt.tag_id").
 			Where("tags.slug = ?", tagSlug)
 	}
 
-	err := tx.
-		Distinct("problems.*").
+	// 分页
+	if filter.Page > 0 && filter.PageSize > 0 {
+		offset := (filter.Page - 1) * filter.PageSize
+		query = query.Offset(offset).Limit(filter.PageSize)
+	}
+
+	err := query.
+		Distinct("problems.id").
 		Order("problems.id ASC").
 		Find(&problems).Error
 	return problems, err
