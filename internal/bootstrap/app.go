@@ -1,6 +1,7 @@
 package bootstrap
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"time"
@@ -39,17 +40,28 @@ func NewApp() (*App, error) {
 	healthHandler := handler.NewHealthHandler(healthService)
 
 	userRepo := repository.NewUserRepository(db)
+	adminUserRepo := repository.NewAdminUserRepository(db)
 	problemSetRepo := repository.NewProblemSetRepository(db)
 	problemRepo := repository.NewProblemRepository(db)
 	submissionRepo := repository.NewSubmissionRepository(db)
 
 	tokenTTL := time.Duration(cfg.Auth.TokenTTL) * time.Minute
 	authService := service.NewAuthService(userRepo, []byte(cfg.Auth.JWTSecret), tokenTTL)
+	adminAuthService := service.NewAdminAuthService(adminUserRepo, []byte(cfg.Auth.JWTSecret), tokenTTL)
+	adminAuthorizer, err := service.NewAdminAuthorizer(db)
+	if err != nil {
+		return nil, fmt.Errorf("new admin authorizer: %w", err)
+	}
+	if err := adminAuthorizer.SeedPolicies(context.Background()); err != nil {
+		return nil, fmt.Errorf("seed admin policies: %w", err)
+	}
 	problemSetService := service.NewProblemSetService(problemSetRepo)
 	problemService := service.NewProblemService(problemRepo)
 	submissionService := service.NewSubmissionService(submissionRepo, problemRepo)
 
 	authHandler := handler.NewAuthHandler(authService)
+	adminAuthHandler := handler.NewAdminAuthHandler(adminAuthService)
+	adminHandler := handler.NewAdminHandler()
 	problemSetHandler := handler.NewProblemSetHandler(problemSetService)
 	problemHandler := handler.NewProblemHandler(problemService)
 	submissionHandler := handler.NewSubmissionHandler(submissionService)
@@ -57,7 +69,17 @@ func NewApp() (*App, error) {
 	return &App{
 		Config: cfg,
 		DB:     db,
-		Router: router.New(healthHandler, authHandler, problemSetHandler, problemHandler, submissionHandler),
+		Router: router.New(
+			healthHandler,
+			authHandler,
+			problemSetHandler,
+			problemHandler,
+			submissionHandler,
+			adminAuthHandler,
+			adminAuthService,
+			adminHandler,
+			adminAuthorizer,
+		),
 	}, nil
 }
 
@@ -85,6 +107,7 @@ func InitDB(cfg *config.Config) (*gorm.DB, error) {
 	if err := db.AutoMigrate(
 		&model.SystemSetting{},
 		&model.User{},
+		&model.AdminUser{},
 		&model.ProblemSet{},
 		&model.Problem{},
 		&model.Tag{},
@@ -92,6 +115,7 @@ func InitDB(cfg *config.Config) (*gorm.DB, error) {
 		&model.ProblemSetProblem{},
 		&model.Submission{},
 		&model.UserProblemStat{},
+		&model.OperationLog{},
 	); err != nil {
 		_ = sqlDB.Close()
 		return nil, err

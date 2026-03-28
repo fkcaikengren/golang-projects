@@ -66,15 +66,30 @@ func (s stubSubmissionService) ListProblemSubmissions(ctx context.Context, userI
 	return []model.Submission{}, nil
 }
 
-func TestHealthRoute(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	r := New(
+func newBaseTestRouter(t *testing.T) *gin.Engine {
+	t.Helper()
+
+	authz, err := service.NewInMemoryAdminAuthorizer()
+	if err != nil {
+		t.Fatalf("NewInMemoryAdminAuthorizer() error = %v", err)
+	}
+
+	return New(
 		handler.NewHealthHandler(service.NewHealthService("go-oj", stubHealthRepo{})),
 		handler.NewAuthHandler(stubAuthService{}),
 		handler.NewProblemSetHandler(stubProblemSetService{}),
 		handler.NewProblemHandler(stubProblemService{}),
 		handler.NewSubmissionHandler(stubSubmissionService{}),
+		handler.NewAdminAuthHandler(stubAdminAuthService{}),
+		stubAdminAuthService{},
+		handler.NewAdminHandler(),
+		authz,
 	)
+}
+
+func TestHealthRoute(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	r := newBaseTestRouter(t)
 
 	req := httptest.NewRequest(http.MethodGet, "/health", nil)
 	rec := httptest.NewRecorder()
@@ -87,13 +102,7 @@ func TestHealthRoute(t *testing.T) {
 
 func TestReadyRoute(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	r := New(
-		handler.NewHealthHandler(service.NewHealthService("go-oj", stubHealthRepo{})),
-		handler.NewAuthHandler(stubAuthService{}),
-		handler.NewProblemSetHandler(stubProblemSetService{}),
-		handler.NewProblemHandler(stubProblemService{}),
-		handler.NewSubmissionHandler(stubSubmissionService{}),
-	)
+	r := newBaseTestRouter(t)
 
 	req := httptest.NewRequest(http.MethodGet, "/ready", nil)
 	rec := httptest.NewRecorder()
@@ -106,13 +115,7 @@ func TestReadyRoute(t *testing.T) {
 
 func TestNoRoute(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	r := New(
-		handler.NewHealthHandler(service.NewHealthService("go-oj", stubHealthRepo{})),
-		handler.NewAuthHandler(stubAuthService{}),
-		handler.NewProblemSetHandler(stubProblemSetService{}),
-		handler.NewProblemHandler(stubProblemService{}),
-		handler.NewSubmissionHandler(stubSubmissionService{}),
-	)
+	r := newBaseTestRouter(t)
 
 	req := httptest.NewRequest(http.MethodGet, "/missing", nil)
 	rec := httptest.NewRecorder()
@@ -125,13 +128,7 @@ func TestNoRoute(t *testing.T) {
 
 func TestAuthRegisterRouteIsRegistered(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	r := New(
-		handler.NewHealthHandler(service.NewHealthService("go-oj", stubHealthRepo{})),
-		handler.NewAuthHandler(stubAuthService{}),
-		handler.NewProblemSetHandler(stubProblemSetService{}),
-		handler.NewProblemHandler(stubProblemService{}),
-		handler.NewSubmissionHandler(stubSubmissionService{}),
-	)
+	r := newBaseTestRouter(t)
 
 	req := httptest.NewRequest(
 		http.MethodPost,
@@ -149,13 +146,7 @@ func TestAuthRegisterRouteIsRegistered(t *testing.T) {
 
 func TestAuthLoginRouteIsRegistered(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	r := New(
-		handler.NewHealthHandler(service.NewHealthService("go-oj", stubHealthRepo{})),
-		handler.NewAuthHandler(stubAuthService{}),
-		handler.NewProblemSetHandler(stubProblemSetService{}),
-		handler.NewProblemHandler(stubProblemService{}),
-		handler.NewSubmissionHandler(stubSubmissionService{}),
-	)
+	r := newBaseTestRouter(t)
 
 	req := httptest.NewRequest(
 		http.MethodPost,

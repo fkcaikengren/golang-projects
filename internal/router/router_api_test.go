@@ -14,12 +14,20 @@ import (
 
 func newTestAPIRouter() *gin.Engine {
 	gin.SetMode(gin.TestMode)
+	adminAuthz, err := service.NewInMemoryAdminAuthorizer()
+	if err != nil {
+		panic(err)
+	}
 	return New(
 		handler.NewHealthHandler(service.NewHealthService("go-oj", stubHealthRepo{})),
 		handler.NewAuthHandler(stubAuthService{}),
 		handler.NewProblemSetHandler(stubProblemSetService{}),
 		handler.NewProblemHandler(stubProblemService{}),
 		handler.NewSubmissionHandler(stubSubmissionService{}),
+		handler.NewAdminAuthHandler(stubAdminAuthService{}),
+		stubAdminAuthService{},
+		handler.NewAdminHandler(),
+		adminAuthz,
 	)
 }
 
